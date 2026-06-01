@@ -381,6 +381,18 @@
       <label>Min score to get on the board</label>
       <input type="number" id="min-score" value="500" min="0" max="2000" step="50">
     </div>
+    <div class="settings-row">
+      <label>Consecutive farkles for penalty</label>
+      <select id="farkle-streak" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'DM Mono',monospace;font-size:0.9rem;padding:7px 10px;width:110px;outline:none;">
+        <option value="0">Off</option>
+        <option value="2">2 in a row</option>
+        <option value="3" selected>3 in a row</option>
+      </select>
+    </div>
+    <div class="settings-row" id="penalty-amount-row">
+      <label>Penalty points</label>
+      <input type="number" id="farkle-penalty" value="1000" min="100" max="5000" step="100">
+    </div>
 
     <div style="margin-top:1.5rem">
       <button class="btn gold" id="btn-start-game" disabled>Start Game</button>
@@ -439,6 +451,7 @@
       </div>
 
       <div id="min-warning" style="display:none;font-size:0.78rem;color:#e07060;margin-top:0.7rem;font-family:'DM Mono',monospace;"></div>
+      <div id="streak-warning" style="display:none;font-size:0.78rem;color:#e0a060;margin-top:0.5rem;font-family:'DM Mono',monospace;"></div>
 
       <div class="turn-actions">
         <button class="btn" id="btn-undo" disabled>↩ Undo</button>
@@ -471,6 +484,8 @@ const initials = n => n.trim().split(/\s+/).map(w=>w[0].toUpperCase()).join('').
 let players = [];
 let targetScore = 10000;
 let minScore = 500;
+let farkleStreak = 3;
+let farklePenalty = 1000;
 let currentIdx = 0;
 let round = 1;
 let history = [];
@@ -515,7 +530,9 @@ playerList.addEventListener('click', e => {
 document.getElementById('btn-start-game').addEventListener('click', () => {
   targetScore = parseInt(document.getElementById('target-score').value) || 10000;
   minScore = parseInt(document.getElementById('min-score').value) || 0;
-  players.forEach(p => { p.score = 0; p.farkles = 0; p.turns = 0; p.onBoard = false; });
+  farkleStreak = parseInt(document.getElementById('farkle-streak').value) || 0;
+  farklePenalty = parseInt(document.getElementById('farkle-penalty').value) || 1000;
+  players.forEach(p => { p.score = 0; p.farkles = 0; p.turns = 0; p.onBoard = false; p.consecFarkles = 0; });
   currentIdx = 0; round = 1; history = []; gameOver = false;
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'block';
@@ -531,6 +548,16 @@ function renderGame() {
   document.getElementById('round-label').textContent = `Round ${round}`;
   document.getElementById('current-player-name').textContent = cur.name;
   document.getElementById('min-warning').style.display = 'none';
+
+  // streak warning
+  const streakWarn = document.getElementById('streak-warning');
+  if (farkleStreak > 0 && cur.consecFarkles > 0) {
+    const left = farkleStreak - cur.consecFarkles;
+    streakWarn.textContent = `⚠️ ${cur.consecFarkles} farkle${cur.consecFarkles>1?'s':''} in a row — ${left} more triggers −${farklePenalty.toLocaleString()}`;
+    streakWarn.style.display = 'block';
+  } else {
+    streakWarn.style.display = 'none';
+  }
 
   const maxScore = Math.max(...players.map(p=>p.score));
   const tbody = document.getElementById('score-tbody');
@@ -592,11 +619,13 @@ document.getElementById('btn-add-score').addEventListener('click', () => {
   }
 
   history.push({ type: 'score', playerIdx: currentIdx, amount: val,
-    prevScore: p.score, prevOnBoard: p.onBoard, prevTurns: p.turns, round });
+    prevScore: p.score, prevOnBoard: p.onBoard, prevTurns: p.turns,
+    prevConsecFarkles: p.consecFarkles, round });
 
   if (!p.onBoard) p.onBoard = true;
   p.score += val;
   p.turns++;
+  p.consecFarkles = 0;
   document.getElementById('score-input').value = '';
 
   if (p.score >= targetScore) {
@@ -612,11 +641,26 @@ document.getElementById('btn-add-score').addEventListener('click', () => {
 document.getElementById('btn-farkle').addEventListener('click', () => {
   if (gameOver) return;
   const p = players[currentIdx];
+  const newConsec = p.consecFarkles + 1;
+  const penaltyApplied = farkleStreak > 0 && newConsec >= farkleStreak;
+  const prevScore = p.score;
+
   history.push({ type: 'farkle', playerIdx: currentIdx,
-    prevFarkles: p.farkles, prevTurns: p.turns, round });
+    prevFarkles: p.farkles, prevTurns: p.turns,
+    prevConsecFarkles: p.consecFarkles, prevScore: p.score,
+    penaltyApplied, round });
+
   p.farkles++;
   p.turns++;
+  p.consecFarkles = newConsec;
   document.getElementById('score-input').value = '';
+
+  if (penaltyApplied) {
+    p.score = Math.max(0, p.score - farklePenalty);
+    p.consecFarkles = 0;
+    showPenaltyFlash(p.name, farklePenalty);
+  }
+
   nextTurn();
   renderGame();
 });
@@ -635,9 +679,12 @@ document.getElementById('btn-undo').addEventListener('click', () => {
     p.score = last.prevScore;
     p.onBoard = last.prevOnBoard;
     p.turns = last.prevTurns;
+    p.consecFarkles = last.prevConsecFarkles;
   } else {
     p.farkles = last.prevFarkles;
     p.turns = last.prevTurns;
+    p.consecFarkles = last.prevConsecFarkles;
+    p.score = last.prevScore;
   }
   round = last.round;
   currentIdx = last.playerIdx;
@@ -670,15 +717,36 @@ function renderHistory() {
         <span class="history-score positive">+${h.amount.toLocaleString()}</span>
       `;
     } else {
+      const penLabel = h.penaltyApplied ? ` <span style="color:#e07060;font-size:0.7rem">−${farklePenalty.toLocaleString()}</span>` : '';
       div.innerHTML = `
         <span class="history-round">R${h.round}</span>
         <span class="history-name">${p.name}</span>
-        <span class="history-score farkle">FARKLE</span>
+        <span class="history-score farkle">FARKLE${penLabel}</span>
       `;
     }
     list.appendChild(div);
   });
 }
+
+// ---- Penalty flash ----
+function showPenaltyFlash(name, amount) {
+  let el = document.getElementById('penalty-flash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'penalty-flash';
+    el.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;font-family:"DM Mono",monospace;font-size:0.85rem;padding:10px 22px;border-radius:8px;z-index:300;opacity:1;transition:opacity 0.5s;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(el);
+  }
+  el.textContent = `💥 ${name} −${amount.toLocaleString()} (${farkleStreak} farkles in a row!)`;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 2800);
+}
+
+// ---- Toggle penalty amount row ----
+document.getElementById('farkle-streak').addEventListener('change', function() {
+  document.getElementById('penalty-amount-row').style.display = this.value === '0' ? 'none' : '';
+});
 
 // ---- Winner ----
 function showWinner(p) {

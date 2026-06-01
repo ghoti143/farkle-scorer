@@ -1,1 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farkle Score Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1916;
+    --surface2: #232118;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --gold: #d4a853;
+    --gold-light: #f0c878;
+    --gold-dim: rgba(212,168,83,0.15);
+    --text: #f0ece3;
+    --muted: #8a8478;
+    --danger: #c0392b;
+    --danger-dim: rgba(192,57,43,0.15);
+    --green: #27ae60;
+    --green-dim: rgba(39,174,96,0.15);
+    --radius: 8px;
+    --radius-lg: 14px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 4rem;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+  }
+
+  header .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    padding: 7px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.25); }
+  .btn.gold { background: var(--gold); border-color: var(--gold); color: #1a1510; font-weight: 500; }
+  .btn.gold:hover { background: var(--gold-light); border-color: var(--gold-light); }
+  .btn.danger { border-color: rgba(192,57,43,0.4); color: #e07060; }
+  .btn.danger:hover { background: var(--danger-dim); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .main { max-width: 980px; margin: 0 auto; padding: 2rem 1.5rem 0; }
+
+  /* Setup screen */
+  #setup-screen { max-width: 480px; margin: 3rem auto 0; }
+  #setup-screen h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--gold); margin-bottom: 0.3rem; }
+  #setup-screen .hint { font-size: 0.82rem; color: var(--muted); margin-bottom: 1.5rem; }
+
+  .input-row {
+    display: flex; gap: 8px; margin-bottom: 1rem;
+  }
+  .input-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    padding: 9px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input-row input:focus { border-color: var(--gold); }
+
+  #player-list { margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 8px; }
+  .player-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--gold-dim); border: 1px solid rgba(212,168,83,0.3);
+    border-radius: 20px; padding: 5px 12px;
+    font-size: 0.83rem; color: var(--gold-light);
+  }
+  .player-chip .remove {
+    cursor: pointer; color: var(--muted); font-size: 0.9rem; line-height: 1;
+    transition: color 0.1s;
+  }
+  .player-chip .remove:hover { color: #e07060; }
+
+  .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .settings-row label { font-size: 0.85rem; color: var(--muted); }
+  .settings-row input[type=number] {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    padding: 7px 10px;
+    width: 110px;
+    text-align: right;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .settings-row input[type=number]:focus { border-color: var(--gold); }
+
+  /* Game screen */
+  #game-screen { display: none; }
+
+  .game-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+  .game-header .round-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .target-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--gold);
+    background: var(--gold-dim);
+    border: 1px solid rgba(212,168,83,0.25);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+
+  /* Score table */
+  .score-table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    min-width: 400px;
+  }
+  th {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th.num { text-align: right; }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  td.num { text-align: right; font-family: 'DM Mono', monospace; }
+  tr:last-child td { border-bottom: none; }
+
+  .player-name-cell { display: flex; align-items: center; gap: 8px; }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.68rem; font-weight: 500; flex-shrink: 0;
+  }
+  .current-player td { background: rgba(212,168,83,0.05); }
+  .current-player .avatar { box-shadow: 0 0 0 2px var(--gold); }
+
+  .score-cell {
+    display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  }
+  .total-score {
+    font-family: 'DM Mono', monospace; font-size: 1.05rem; font-weight: 500;
+  }
+  .leader .total-score { color: var(--gold-light); }
+  .leader-crown { font-size: 0.9rem; }
+
+  .farkle-badge {
+    font-size: 0.65rem; font-family: 'DM Mono', monospace;
+    background: var(--danger-dim); color: #e07060;
+    border: 1px solid rgba(192,57,43,0.3);
+    border-radius: 4px; padding: 2px 6px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Turn entry panel */
+  .turn-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .turn-panel h3 {
+    font-size: 0.72rem; font-family: 'DM Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 1.2rem;
+  }
+  .turn-panel h3 span { color: var(--gold-light); font-family: 'DM Sans', sans-serif; text-transform: none; letter-spacing: 0; font-size: 0.95rem; }
+
+  .score-entry-row {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .score-entry-row input[type=number] {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 1.2rem;
+    padding: 10px 16px;
+    width: 160px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .score-entry-row input[type=number]:focus { border-color: var(--gold); }
+
+  .quick-scores {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 1rem;
+  }
+  .quick-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .quick-btn:hover { background: var(--gold-dim); border-color: rgba(212,168,83,0.4); color: var(--gold-light); }
+
+  .turn-actions { display: flex; gap: 8px; margin-top: 1.2rem; flex-wrap: wrap; }
+
+  /* History panel */
+  .history-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .history-panel h3 {
+    font-size: 0.72rem; font-family: 'DM Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 1rem;
+  }
+  .history-list { max-height: 220px; overflow-y: auto; }
+  .history-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-round {
+    font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); min-width: 52px;
+  }
+  .history-name { flex: 1; }
+  .history-score {
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+  }
+  .history-score.positive { color: var(--green); }
+  .history-score.farkle { color: #e07060; }
+
+  /* Winner overlay */
+  #winner-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(10,9,8,0.88);
+    align-items: center; justify-content: center;
+  }
+  #winner-overlay.show { display: flex; }
+  .winner-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    text-align: center;
+    max-width: 340px;
+    width: 90%;
+  }
+  .winner-card .crown { font-size: 3rem; margin-bottom: 0.5rem; }
+  .winner-card h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem; color: var(--gold); margin-bottom: 0.3rem;
+  }
+  .winner-card .winner-name {
+    font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--text);
+  }
+  .winner-card .winner-score {
+    font-family: 'DM Mono', monospace; font-size: 1rem;
+    color: var(--muted); margin-bottom: 1.8rem;
+  }
+
+  /* Avatar colors */
+  .av0 { background: rgba(212,168,83,0.2); color: #d4a853; }
+  .av1 { background: rgba(93,202,165,0.2); color: #5dcaa5; }
+  .av2 { background: rgba(135,141,221,0.2); color: #8f95db; }
+  .av3 { background: rgba(216,90,48,0.2); color: #e07060; }
+  .av4 { background: rgba(212,83,126,0.2); color: #d4537e; }
+  .av5 { background: rgba(55,138,221,0.2); color: #378add; }
+
+  .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+
+  @media (max-width: 560px) {
+    header { padding: 1rem; }
+    header h1 { font-size: 1.3rem; }
+    .main { padding: 1rem 0.75rem 0; }
+    .score-entry-row input[type=number] { width: 120px; font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎲 Farkle</h1>
+    <div class="subtitle">Score Tracker</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn" id="btn-history-toggle" style="display:none">History</button>
+    <button class="btn danger" id="btn-new-game" style="display:none">New Game</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- SETUP -->
+  <div id="setup-screen">
+    <h2>Set Up Game</h2>
+    <p class="hint">Add 2–8 players to get started.</p>
+
+    <div class="input-row">
+      <input type="text" id="player-input" placeholder="Player name…" maxlength="20">
+      <button class="btn" id="btn-add-player">Add</button>
+    </div>
+
+    <div id="player-list"></div>
+
+    <div class="settings-row">
+      <label>Winning score target</label>
+      <input type="number" id="target-score" value="10000" min="1000" max="100000" step="500">
+    </div>
+    <div class="settings-row">
+      <label>Min score to get on the board</label>
+      <input type="number" id="min-score" value="500" min="0" max="2000" step="50">
+    </div>
+
+    <div style="margin-top:1.5rem">
+      <button class="btn gold" id="btn-start-game" disabled>Start Game</button>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game-screen">
+    <div class="game-header">
+      <div>
+        <div class="round-badge" id="round-label">Round 1</div>
+      </div>
+      <div class="target-badge" id="target-label">Target: 10,000</div>
+    </div>
+
+    <div class="score-table-wrap">
+      <table id="score-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th class="num">Total</th>
+            <th class="num">Farkles</th>
+            <th class="num">Turns</th>
+          </tr>
+        </thead>
+        <tbody id="score-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="turn-panel" id="turn-panel">
+      <h3>Turn — <span id="current-player-name">Player</span></h3>
+
+      <div class="score-entry-row">
+        <input type="number" id="score-input" placeholder="0" min="0" step="50">
+        <button class="btn gold" id="btn-add-score">Add Score</button>
+        <button class="btn danger" id="btn-farkle">Farkle!</button>
+      </div>
+
+      <div class="quick-scores">
+        <span style="font-size:0.72rem;color:var(--muted);align-self:center;margin-right:4px">Quick:</span>
+        <button class="quick-btn" data-val="50">50</button>
+        <button class="quick-btn" data-val="100">100</button>
+        <button class="quick-btn" data-val="150">150</button>
+        <button class="quick-btn" data-val="200">200</button>
+        <button class="quick-btn" data-val="250">250</button>
+        <button class="quick-btn" data-val="300">300</button>
+        <button class="quick-btn" data-val="350">350</button>
+        <button class="quick-btn" data-val="400">400</button>
+        <button class="quick-btn" data-val="500">500</button>
+        <button class="quick-btn" data-val="600">600</button>
+        <button class="quick-btn" data-val="700">700</button>
+        <button class="quick-btn" data-val="1000">1,000</button>
+        <button class="quick-btn" data-val="1500">1,500</button>
+        <button class="quick-btn" data-val="2000">2,000</button>
+        <button class="quick-btn" data-val="3000">3,000</button>
+      </div>
+
+      <div id="min-warning" style="display:none;font-size:0.78rem;color:#e07060;margin-top:0.7rem;font-family:'DM Mono',monospace;"></div>
+
+      <div class="turn-actions">
+        <button class="btn" id="btn-undo" disabled>↩ Undo</button>
+      </div>
+    </div>
+
+    <div class="history-panel" id="history-panel" style="display:none">
+      <h3>Turn History</h3>
+      <div class="history-list" id="history-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- WINNER -->
+<div id="winner-overlay">
+  <div class="winner-card">
+    <div class="crown">👑</div>
+    <h2>Winner!</h2>
+    <div class="winner-name" id="winner-name"></div>
+    <div class="winner-score" id="winner-score"></div>
+    <button class="btn gold" id="btn-play-again" style="width:100%">Play Again</button>
+  </div>
+</div>
+
+<script>
+const AVATAR_COLORS = ['av0','av1','av2','av3','av4','av5'];
+const initials = n => n.trim().split(/\s+/).map(w=>w[0].toUpperCase()).join('').slice(0,2);
+
+let players = [];
+let targetScore = 10000;
+let minScore = 500;
+let currentIdx = 0;
+let round = 1;
+let history = [];
+let gameOver = false;
+let showHistory = false;
+
+// ---- Setup ----
+const playerInput = document.getElementById('player-input');
+const playerList = document.getElementById('player-list');
+const btnAdd = document.getElementById('btn-add-player');
+const btnStart = document.getElementById('btn-start-game');
+
+function renderChips() {
+  playerList.innerHTML = '';
+  players.forEach((p, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    chip.innerHTML = `${p.name}<span class="remove" data-i="${i}">✕</span>`;
+    playerList.appendChild(chip);
+  });
+  btnStart.disabled = players.length < 2;
+}
+
+function addPlayer() {
+  const name = playerInput.value.trim();
+  if (!name || players.length >= 8) return;
+  if (players.find(p => p.name.toLowerCase() === name.toLowerCase())) return;
+  players.push({ name, score: 0, farkles: 0, turns: 0, onBoard: false });
+  playerInput.value = '';
+  renderChips();
+  playerInput.focus();
+}
+
+btnAdd.addEventListener('click', addPlayer);
+playerInput.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
+playerList.addEventListener('click', e => {
+  const i = e.target.dataset.i;
+  if (i !== undefined) { players.splice(+i, 1); renderChips(); }
+});
+
+// ---- Game Start ----
+document.getElementById('btn-start-game').addEventListener('click', () => {
+  targetScore = parseInt(document.getElementById('target-score').value) || 10000;
+  minScore = parseInt(document.getElementById('min-score').value) || 0;
+  players.forEach(p => { p.score = 0; p.farkles = 0; p.turns = 0; p.onBoard = false; });
+  currentIdx = 0; round = 1; history = []; gameOver = false;
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('btn-new-game').style.display = '';
+  document.getElementById('btn-history-toggle').style.display = '';
+  document.getElementById('target-label').textContent = 'Target: ' + targetScore.toLocaleString();
+  renderGame();
+});
+
+// ---- Render ----
+function renderGame() {
+  const cur = players[currentIdx];
+  document.getElementById('round-label').textContent = `Round ${round}`;
+  document.getElementById('current-player-name').textContent = cur.name;
+  document.getElementById('min-warning').style.display = 'none';
+
+  const maxScore = Math.max(...players.map(p=>p.score));
+  const tbody = document.getElementById('score-tbody');
+  tbody.innerHTML = '';
+  players.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    const isLeader = p.score === maxScore && p.score > 0;
+    const isCurrent = i === currentIdx;
+    if (isCurrent) tr.className = 'current-player';
+    const avClass = AVATAR_COLORS[i % AVATAR_COLORS.length];
+    tr.innerHTML = `
+      <td>
+        <div class="player-name-cell">
+          <div class="avatar ${avClass}">${initials(p.name)}</div>
+          ${p.name}
+        </div>
+      </td>
+      <td class="num">
+        <div class="score-cell">
+          ${isLeader ? '<span class="leader-crown">👑</span>' : ''}
+          <span class="total-score ${isLeader ? 'leader' : ''}">${p.score.toLocaleString()}</span>
+        </div>
+      </td>
+      <td class="num">
+        <span ${p.farkles > 0 ? 'class="farkle-badge"' : 'style="color:var(--muted)"'}>${p.farkles}</span>
+      </td>
+      <td class="num" style="color:var(--muted)">${p.turns}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('btn-undo').disabled = history.length === 0;
+  renderHistory();
+}
+
+// ---- Score Entry ----
+document.querySelectorAll('.quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('score-input').value = btn.dataset.val;
+    document.getElementById('score-input').focus();
+  });
+});
+
+document.getElementById('score-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-add-score').click();
+});
+
+document.getElementById('btn-add-score').addEventListener('click', () => {
+  if (gameOver) return;
+  const val = parseInt(document.getElementById('score-input').value);
+  if (!val || val <= 0) return;
+  const p = players[currentIdx];
+  const warn = document.getElementById('min-warning');
+
+  if (!p.onBoard && val < minScore) {
+    warn.textContent = `Need at least ${minScore.toLocaleString()} to get on the board.`;
+    warn.style.display = 'block';
+    return;
+  }
+
+  history.push({ type: 'score', playerIdx: currentIdx, amount: val,
+    prevScore: p.score, prevOnBoard: p.onBoard, prevTurns: p.turns, round });
+
+  if (!p.onBoard) p.onBoard = true;
+  p.score += val;
+  p.turns++;
+  document.getElementById('score-input').value = '';
+
+  if (p.score >= targetScore) {
+    showWinner(p);
+    renderGame();
+    return;
+  }
+
+  nextTurn();
+  renderGame();
+});
+
+document.getElementById('btn-farkle').addEventListener('click', () => {
+  if (gameOver) return;
+  const p = players[currentIdx];
+  history.push({ type: 'farkle', playerIdx: currentIdx,
+    prevFarkles: p.farkles, prevTurns: p.turns, round });
+  p.farkles++;
+  p.turns++;
+  document.getElementById('score-input').value = '';
+  nextTurn();
+  renderGame();
+});
+
+function nextTurn() {
+  currentIdx = (currentIdx + 1) % players.length;
+  if (currentIdx === 0) round++;
+}
+
+// ---- Undo ----
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (!history.length || gameOver) return;
+  const last = history.pop();
+  const p = players[last.playerIdx];
+  if (last.type === 'score') {
+    p.score = last.prevScore;
+    p.onBoard = last.prevOnBoard;
+    p.turns = last.prevTurns;
+  } else {
+    p.farkles = last.prevFarkles;
+    p.turns = last.prevTurns;
+  }
+  round = last.round;
+  currentIdx = last.playerIdx;
+  renderGame();
+});
+
+// ---- History ----
+document.getElementById('btn-history-toggle').addEventListener('click', () => {
+  showHistory = !showHistory;
+  document.getElementById('history-panel').style.display = showHistory ? 'block' : 'none';
+  document.getElementById('btn-history-toggle').textContent = showHistory ? 'Hide History' : 'History';
+});
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!showHistory) return;
+  list.innerHTML = '';
+  if (!history.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:4px 0">No turns yet.</div>';
+    return;
+  }
+  [...history].reverse().forEach(h => {
+    const p = players[h.playerIdx];
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    if (h.type === 'score') {
+      div.innerHTML = `
+        <span class="history-round">R${h.round}</span>
+        <span class="history-name">${p.name}</span>
+        <span class="history-score positive">+${h.amount.toLocaleString()}</span>
+      `;
+    } else {
+      div.innerHTML = `
+        <span class="history-round">R${h.round}</span>
+        <span class="history-name">${p.name}</span>
+        <span class="history-score farkle">FARKLE</span>
+      `;
+    }
+    list.appendChild(div);
+  });
+}
+
+// ---- Winner ----
+function showWinner(p) {
+  gameOver = true;
+  document.getElementById('winner-name').textContent = p.name;
+  document.getElementById('winner-score').textContent = p.score.toLocaleString() + ' points';
+  document.getElementById('winner-overlay').classList.add('show');
+  document.getElementById('turn-panel').style.opacity = '0.4';
+  document.getElementById('turn-panel').style.pointerEvents = 'none';
+}
+
+document.getElementById('btn-play-again').addEventListener('click', resetGame);
+document.getElementById('btn-new-game').addEventListener('click', resetGame);
+
+function resetGame() {
+  gameOver = false;
+  players = [];
+  history = [];
+  currentIdx = 0;
+  round = 1;
+  showHistory = false;
+  document.getElementById('winner-overlay').classList.remove('show');
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'block';
+  document.getElementById('btn-new-game').style.display = 'none';
+  document.getElementById('btn-history-toggle').style.display = 'none';
+  document.getElementById('btn-history-toggle').textContent = 'History';
+  document.getElementById('history-panel').style.display = 'none';
+  document.getElementById('turn-panel').style.opacity = '';
+  document.getElementById('turn-panel').style.pointerEvents = '';
+  document.getElementById('player-list').innerHTML = '';
+  document.getElementById('player-input').value = '';
+  btnStart.disabled = true;
+}
+</script>
+</body>
+</html>
